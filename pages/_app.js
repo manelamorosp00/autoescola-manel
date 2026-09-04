@@ -5,9 +5,9 @@ export default function App({ Component, pageProps }) {
   return (
     <>
       <Head>
-        <title>Autoescuela Manel — Ares</title>
+        <title>Autoescola Manel — Ares</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="theme-color" content="#155DFC" />
+        <meta name="theme-color" content="#155dfc" />
       </Head>
       <Component {...pageProps} />
     </>
