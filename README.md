@@ -1,4 +1,4 @@
-# Autoescola Manel — exclusiu per a Ares "Suricata" 🦡
+# Autoescuela Manel — exclusiu per a Ares "Suricata" 🦡
 
 App de pràctica del teòric de cotxe: 10 examens de 30 preguntes (no saps si has
 aprovat fins que no l'acabes) + repàs automàtic de les preguntes fallades.
@@ -31,7 +31,7 @@ Si no tens compte, crea'n un a [github.com](https://github.com) (gratuït).
     cd autoescola-manel-app
     git init
     git add .
-    git commit -m "Autoescola Manel"
+    git commit -m "Autoescuela Manel"
     git branch -M main
     git remote add origin https://github.com/EL_TEU_USUARI/autoescola-manel.git
     git push -u origin main
@@ -75,6 +75,6 @@ repetir els passos 2-3.
   progrés es guarda directament amb el seu compte de base de dades.
 - Les preguntes són d'elaboració pròpia seguint l'estil i la normativa
   general de trànsit (RGC/DGT), no el banc oficial de la DGT.
-- Si vols provar-ho en local abans de pujar-ho: `npm install` i després
+- Si vols provar-ho en local abans de subirlo: `npm install` i després
   `npm run dev` (necessitaràs un fitxer `.env.local` amb `POSTGRES_URL`,
   vegeu `.env.example`).

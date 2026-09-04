@@ -9,12 +9,61 @@ import {
 
 const EMPTY_STATE = {
   examResults: {}, // {1:{done:true,score:27,pass:true}, ...}
-  failedIds: [], // ids únics de preguntes fallades
+  failedIds: [], // ids únicos de preguntas falladas
   inProgress: {}, // {"3": {qIndex, answers}} o {"review": {ids, qIndex, answers}}
 };
 
+/* =========================================================
+   Iconos (SVG en línea, sin dependencias externas)
+   ========================================================= */
+const IconWheel = () => (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="white" strokeWidth="1.8" />
+    <circle cx="12" cy="12" r="2.4" stroke="white" strokeWidth="1.8" />
+    <path d="M12 3v6.6M12 14.4V21M4.2 8l5.7 3.3M20 16l-5.7-3.3M4.2 16l5.7-3.3M20 8l-5.7 3.3" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const IconCheck = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IconX = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+  </svg>
+);
+const IconClock = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+    <path d="M12 7v5l3.5 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+const IconAlert = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M12 3l10 18H2L12 3z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    <path d="M12 10v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="12" cy="17" r="1" fill="currentColor" />
+  </svg>
+);
+const IconChevron = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IconArrowLeft = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IconLogout = ({ size = 15 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export default function Home() {
-  const [state, setState] = useState(null); // null mentre carrega
+  const [state, setState] = useState(null); // null mientras carga
   const [saveOk, setSaveOk] = useState(true);
   const [screen, setScreen] = useState({ name: "home" });
   const stateRef = useRef(null);
@@ -52,8 +101,8 @@ export default function Home() {
   if (!state) {
     return (
       <div className="app">
-        <div style={{ padding: "60px 0", textAlign: "center", color: "#5b6a86" }}>
-          Carregant l&apos;autoescola…
+        <div style={{ padding: "60px 0", textAlign: "center", color: "var(--ink-soft)" }}>
+          Cargando la autoescuela…
         </div>
       </div>
     );
@@ -88,7 +137,6 @@ export default function Home() {
           }
         }}
         onQuit={async () => {
-          // Desa el punt exacte on estava (pregunta actual i respostes donades)
           const next = { ...state };
           next.inProgress = { ...next.inProgress };
           next.inProgress[screen.key] = {
@@ -119,7 +167,7 @@ export default function Home() {
 }
 
 /* =========================================================
-   Construcció de pantalles d'examen
+   Construcción de pantallas de examen
    ========================================================= */
 function startExamScreen(state, examNum) {
   const ids = buildExamIds(examNum);
@@ -144,7 +192,7 @@ function startReviewScreen(state, chunkIndex) {
     key: "review",
     examNum: null,
     ids,
-    title: "Repàs de falles",
+    title: "Repaso de fallos",
     exam,
     qIndex: 0,
     answers: {},
@@ -216,15 +264,19 @@ function Home_({ state, saveOk, onStart, onResume, onStartReview }) {
   return (
     <div className="app">
       <div className="hero">
-        <div className="badge">
-          <div className="top">AUTOESCOLA</div>
-          <div className="mid">MANEL</div>
-          <div className="sub">TEÒRIC B</div>
+        <div className="hero-top">
+          <div className="hero-icon">
+            <IconWheel />
+          </div>
+          <div className="hero-brand">
+            <div className="k">Autoescuela</div>
+            <div className="v">Manel · Teórico B</div>
+          </div>
         </div>
-        <div className="welcome">
-          Hola, <strong>Ares</strong> <span className="nickname">Suricata</span> — has dit que ja
-          estàs preparada, doncs som-hi. Deu examens de 30 preguntes, com el de veritat: no sabràs
-          si has aprovat fins que no l&apos;acabis.
+        <div className="hero-welcome">
+          Hola, <strong>Ares</strong> <span className="nickname">Suricata</span> — has dicho que
+          ya estás preparada, pues vamos allá. Diez exámenes de 30 preguntas, como el de verdad:
+          no sabrás si has aprobado hasta que no lo termines.
         </div>
       </div>
 
@@ -233,33 +285,36 @@ function Home_({ state, saveOk, onStart, onResume, onStartReview }) {
           <div className="n">
             {passed}/{total}
           </div>
-          <div className="l">Examens aprovats</div>
+          <div className="l">Aprobados</div>
         </div>
         <div className="stat">
           <div className="n">
             {done}/{total}
           </div>
-          <div className="l">Examens fets</div>
+          <div className="l">Realizados</div>
         </div>
         <div className="stat">
           <div className="n">{failedCount}</div>
-          <div className="l">Preguntes al repàs</div>
+          <div className="l">En repaso</div>
         </div>
       </div>
 
-      <div className="section-title">Examens</div>
+      <div className="section-title">Exámenes</div>
       <div className="tiles">
         {Array.from({ length: total }, (_, i) => i + 1).map((n) => {
           const r = state.examResults[n];
           const inProg = state.inProgress && state.inProgress[String(n)];
           let cls = "pending",
-            label = "Pendent";
+            label = "Pendiente",
+            icon = null;
           if (inProg) {
             cls = "progress";
-            label = `En curs · ${inProg.qIndex + 1}/30`;
+            label = `Pregunta ${inProg.qIndex + 1}/30`;
+            icon = <IconClock />;
           } else if (r && r.done) {
             cls = r.pass ? "pass" : "fail";
-            label = r.pass ? `Aprovat · ${r.score}/30` : `Suspès · ${r.score}/30`;
+            label = r.pass ? `Aprobado · ${r.score}/30` : `Suspenso · ${r.score}/30`;
+            icon = r.pass ? <IconCheck /> : <IconX />;
           }
           return (
             <div
@@ -267,31 +322,43 @@ function Home_({ state, saveOk, onStart, onResume, onStartReview }) {
               className={`tile ${cls}`}
               onClick={() => (inProg ? onResume(String(n)) : onStart(n))}
             >
-              <div className="num">{String(n).padStart(2, "0")}</div>
+              <div className="tile-top">
+                <div className="num">{String(n).padStart(2, "0")}</div>
+                <div className={`status-dot ${cls}`}>{icon}</div>
+              </div>
               <div className="lbl">Examen</div>
-              <div className={`st ${cls}`}>{label}</div>
+              <div className="st">{label}</div>
             </div>
           );
         })}
       </div>
 
-      <div className="section-title">Repàs de falles</div>
+      <div className="section-title">Repaso de fallos</div>
       <div className="repas-box">
         {failedCount === 0 && !reviewInProgress && (
           <button className="repas-btn" disabled>
-            <span className="tri"></span>
+            <span className="repas-icon">
+              <IconAlert />
+            </span>
             <span className="txt">
-              <strong>Repàs de preguntes fallades</strong>
-              <span>Encara no tens cap pregunta fallada. Comença un examen!</span>
+              <strong>Repaso de preguntas falladas</strong>
+              <span>Todavía no tienes ninguna pregunta fallada. ¡Empieza un examen!</span>
             </span>
           </button>
         )}
         {reviewInProgress && (
           <button className="repas-btn" onClick={() => onResume("review")}>
-            <span className="tri"></span>
+            <span className="repas-icon">
+              <IconClock />
+            </span>
             <span className="txt">
-              <strong>Repàs en curs · {reviewInProgress.qIndex + 1}/{reviewInProgress.ids.length}</strong>
-              <span>Continua per on ho vas deixar</span>
+              <strong>
+                Repaso en curso · {reviewInProgress.qIndex + 1}/{reviewInProgress.ids.length}
+              </strong>
+              <span>Continúa donde lo dejaste</span>
+            </span>
+            <span className="chev">
+              <IconChevron />
             </span>
           </button>
         )}
@@ -303,13 +370,18 @@ function Home_({ state, saveOk, onStart, onResume, onStartReview }) {
             const n = to - from;
             return (
               <button className="repas-btn" key={c} onClick={() => onStartReview(c)}>
-                <span className="tri"></span>
+                <span className="repas-icon">
+                  <IconAlert />
+                </span>
                 <span className="txt">
                   <strong>
-                    Repàs {reviewChunks > 1 ? `${c + 1} · ` : ""}
-                    {n} preguntes fallades
+                    Repaso {reviewChunks > 1 ? `${c + 1} · ` : ""}
+                    {n} preguntas falladas
                   </strong>
-                  <span>Preguntes que has fallat en examens anteriors</span>
+                  <span>Preguntas que has fallado en exámenes anteriores</span>
+                </span>
+                <span className="chev">
+                  <IconChevron />
                 </span>
               </button>
             );
@@ -318,15 +390,15 @@ function Home_({ state, saveOk, onStart, onResume, onStartReview }) {
 
       <footer>
         {saveOk
-          ? "El teu progrés es desa automàticament."
-          : "Avís: no s'ha pogut desar el progrés ara mateix; comprova la connexió."}
+          ? "Tu progreso se guarda automáticamente."
+          : "Aviso: no se ha podido guardar el progreso ahora mismo; comprueba la conexión."}
       </footer>
     </div>
   );
 }
 
 /* =========================================================
-   Pantalla d'examen
+   Pantalla de examen
    ========================================================= */
 function ExamScreen({ screen, onAnswer, onBack, onNext, onQuit }) {
   const item = screen.exam[screen.qIndex];
@@ -339,7 +411,7 @@ function ExamScreen({ screen, onAnswer, onBack, onNext, onQuit }) {
       <div className="exam-topbar">
         <div className="title">{screen.title}</div>
         <div className="prog">
-          Pregunta {screen.qIndex + 1}/{total}
+          {screen.qIndex + 1}/{total}
         </div>
       </div>
       <div className="progress-track">
@@ -355,23 +427,24 @@ function ExamScreen({ screen, onAnswer, onBack, onNext, onQuit }) {
               className={`opt ${screen.answers[screen.qIndex] === i ? "selected" : ""}`}
               onClick={() => onAnswer(screen.qIndex, i)}
             >
-              <span className="letter">{String.fromCharCode(65 + i)}</span>
+              <span className="radio"></span>
               <span>{opt}</span>
             </div>
           ))}
         </div>
         <div className="exam-actions">
           <span className="quit" onClick={onQuit}>
-            Sortir i continuar més tard
+            <IconLogout /> Salir y continuar más tarde
           </span>
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div className="right-actions">
             {screen.qIndex > 0 && (
               <button className="btn secondary" onClick={onBack}>
-                ← Enrere
+                <IconArrowLeft /> Atrás
               </button>
             )}
             <button className="btn" disabled={!answered} onClick={onNext}>
-              {screen.qIndex === total - 1 ? "Finalitzar examen" : "Següent →"}
+              {screen.qIndex === total - 1 ? "Finalizar examen" : "Siguiente"}
+              {screen.qIndex !== total - 1 && <IconChevron />}
             </button>
           </div>
         </div>
@@ -381,7 +454,7 @@ function ExamScreen({ screen, onAnswer, onBack, onNext, onQuit }) {
 }
 
 /* =========================================================
-   Pantalla de resultat
+   Pantalla de resultado
    ========================================================= */
 function ResultScreen({ screen, onHome, onRepeat }) {
   const ex = screen.exam;
@@ -399,37 +472,47 @@ function ResultScreen({ screen, onHome, onRepeat }) {
   return (
     <div className="app">
       <div className="result-wrap">
-        <div className={`stamp ${pass ? "pass" : "fail"}`}>{pass ? "APROVAT" : "SUSPÈS"}</div>
+        <div className={`result-badge ${pass ? "pass" : "fail"}`}>
+          {pass ? <IconCheck size={40} /> : <IconX size={40} />}
+        </div>
+        <div className={`result-title ${pass ? "pass" : "fail"}`}>
+          {pass ? "¡Aprobado!" : "Suspenso"}
+        </div>
         <div className="score-line">
           <b>
             {correct}/{total}
           </b>{" "}
-          respostes correctes
+          respuestas correctas
         </div>
         <div className="allowed-line">
-          Es permeten fins a {allowed} {allowed === 1 ? "error" : "errors"} per aprovar (com al
-          real).
+          Se permiten hasta {allowed} {allowed === 1 ? "error" : "errores"} para aprobar (como en
+          el real).
         </div>
         <div className="result-actions">
           <button className="btn" onClick={onHome}>
-            Tornar al menú
+            Volver al menú
           </button>
           {screen.examNum && (
             <button className="btn secondary" onClick={onRepeat}>
-              Repetir aquest examen
+              Repetir este examen
             </button>
           )}
         </div>
       </div>
-      <div className="section-title">Repàs de la ronda</div>
-      {wrongItems.length === 0 && <p style={{ color: "#5b6a86" }}>Cap error. Ronda perfecta! 🎯</p>}
+      <div className="section-title">Repaso de la ronda</div>
+      {wrongItems.length === 0 && (
+        <p style={{ color: "var(--ink-soft)" }}>Ningún error. ¡Ronda perfecta! 🎯</p>
+      )}
       {wrongItems.map(({ item, given }, i) => (
         <div className="review-item" key={i}>
           <div className="rq">{item.text}</div>
           <div className="ra wrong">
-            La teva resposta: {given !== undefined ? item.options[given] : "(sense contestar)"}
+            <IconX size={13} /> Tu respuesta:{" "}
+            {given !== undefined ? item.options[given] : "(sin contestar)"}
           </div>
-          <div className="ra right">Resposta correcta: {item.options[item.correct]}</div>
+          <div className="ra right">
+            <IconCheck size={13} /> Respuesta correcta: {item.options[item.correct]}
+          </div>
           <div className="exp">{item.exp}</div>
         </div>
       ))}
