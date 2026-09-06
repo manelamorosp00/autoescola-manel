@@ -33,6 +33,7 @@ const LIMIT_SECONDS = 30 * 60; // 30 minuts, com a la DGT
 const EMPTY_STATE = {
   hasSeenSplash: false,
   hasOnboarded: false,
+  hasSeenTutorial: false,
   avatar: null, // emoji o dataURL de foto
   car: null, // id del cotxe escollit
   examResults: {},
@@ -58,6 +59,65 @@ const REWARDS = [
   { emoji: "🏁", label: "Vinils de competició" },
   { emoji: "🪽", label: "Aleró posterior" },
   { emoji: "🔑", label: "Les claus de veritat" },
+];
+
+/* Diapositives del tutorial inicial */
+const TUTORIAL = [
+  {
+    emoji: "📋",
+    accent: PINK,
+    title: "Com és cada examen",
+    body: "30 preguntes, 30 minuts i un màxim de 3 errors. Exactament les regles de la DGT.",
+    points: [
+      "El cronòmetre corre encara que surtis de l'app",
+      "Si s'acaba el temps, es corregeix amb el que hi hagi",
+      "No sabràs si has encertat fins al final",
+    ],
+  },
+  {
+    emoji: "🤔",
+    accent: GOLD,
+    title: "Si dubtes, marca-ho",
+    body: "Toca «Dubtosa» i la pregunta queda senyalada en groc a la barra de dalt.",
+    points: [
+      "El botó «Anar a les dubtoses» t'hi porta de cop",
+      "Pots tocar qualsevol punt de la barra per saltar-hi",
+      "Amb «Enrere» pots canviar una resposta anterior",
+    ],
+  },
+  {
+    emoji: "⏭️",
+    accent: CYAN,
+    title: "Pots deixar-ne en blanc",
+    body: "Si una pregunta se't resisteix, «Ometre per ara» i segueix. Millor això que encallar-te.",
+    points: [
+      "Les que deixis en blanc compten com a error",
+      "Torna-hi abans de finalitzar si et sobra temps",
+      "Pots sortir i continuar més tard on ho vas deixar",
+    ],
+  },
+  {
+    emoji: "🥊",
+    accent: PINK,
+    title: "El que falles, torna",
+    body: "Cada pregunta fallada va a parar al repàs de fallades, i no en surt fins que l'encertes.",
+    points: [
+      "Es fan examens de repàs només amb les teves fallades",
+      "Quan l'encertes, desapareix del repàs",
+      "A «On flaqueges» veuràs els temes que et costen",
+    ],
+  },
+  {
+    emoji: "🏆",
+    accent: LIME,
+    title: "I guanyes coses",
+    body: "Cada examen aprovat puja el teu nivell i desbloqueja una millora per al cotxe.",
+    points: [
+      "La ratxa 🔥 compta els aprovats seguits",
+      "El progrés es desa sol, entris des d'on entris",
+      "Pots reiniciar-ho tot des de la configuració",
+    ],
+  },
 ];
 
 /* =========================================================
@@ -95,7 +155,15 @@ export default function AutoescolaApp() {
         const json = await res.json();
         const data = { ...EMPTY_STATE, ...(json.data || {}) };
         setState(data);
-        setScreen({ name: !data.hasSeenSplash ? "splash" : !data.hasOnboarded ? "onboard" : "home" });
+        setScreen({
+          name: !data.hasSeenSplash
+            ? "splash"
+            : !data.hasOnboarded
+            ? "onboard"
+            : !data.hasSeenTutorial
+            ? "tutorial"
+            : "home",
+        });
       } catch (e) {
         console.error(e);
         setState(EMPTY_STATE);
@@ -136,7 +204,9 @@ export default function AutoescolaApp() {
         <SplashScreen
           onEnter={async () => {
             await persist({ ...state, hasSeenSplash: true });
-            setScreen({ name: state.hasOnboarded ? "home" : "onboard" });
+            setScreen({
+              name: !state.hasOnboarded ? "onboard" : !state.hasSeenTutorial ? "tutorial" : "home",
+            });
           }}
         />
       </Shell>
@@ -149,8 +219,18 @@ export default function AutoescolaApp() {
         <OnboardScreen
           state={state}
           persist={persist}
-          onDone={() => setScreen({ name: "home" })}
+          onDone={() =>
+            setScreen({ name: state.hasSeenTutorial ? "home" : "tutorial" })
+          }
         />
+      </Shell>
+    );
+  }
+
+  if (screen.name === "tutorial") {
+    return (
+      <Shell>
+        <TutorialScreen state={state} persist={persist} onDone={() => setScreen({ name: "home" })} />
       </Shell>
     );
   }
@@ -176,7 +256,13 @@ export default function AutoescolaApp() {
   if (screen.name === "settings") {
     return (
       <Shell>
-        <SettingsScreen state={state} persist={persist} onBack={() => setScreen({ name: "home" })} />
+        <SettingsScreen
+          state={state}
+          persist={persist}
+          onBack={() => setScreen({ name: "home" })}
+          onResetDone={() => setScreen({ name: "splash" })}
+          onShowTutorial={() => setScreen({ name: "tutorial" })}
+        />
       </Shell>
     );
   }
@@ -378,6 +464,90 @@ function OnboardScreen({ state, persist, onDone }) {
             style={{ borderRadius: 20, padding: 20, textAlign: "center", fontFamily: "Anton, sans-serif", fontSize: 20, letterSpacing: "0.06em", textTransform: "uppercase", cursor: ready ? "pointer" : "default", transition: "all .2s ease", background: ready ? "linear-gradient(95deg,#ff2d87,#ff7b3d)" : SURFACE, color: ready ? "#0b0212" : MUTED, border: `1px solid ${ready ? "transparent" : "rgba(255,255,255,0.1)"}`, boxShadow: ready ? "0 14px 36px rgba(255,45,135,0.34)" : "none" }}
           >
             {ready ? "Llesta, al lio" : "Tria cara i cotxe"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   3 · TUTORIAL (següent, següent, preparada)
+   ========================================================= */
+function TutorialScreen({ state, persist, onDone }) {
+  const [i, setI] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const step = TUTORIAL[i];
+  const isLast = i === TUTORIAL.length - 1;
+
+  async function finish() {
+    if (busy) return;
+    setBusy(true);
+    await persist({ ...state, hasSeenTutorial: true });
+    setBusy(false);
+    onDone();
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", padding: "26px 22px 150px", background: "radial-gradient(110% 55% at 15% 0%,#1b0b3a 0%,#05040a 70%)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: MUTED }}>
+          Com funciona · {i + 1} de {TUTORIAL.length}
+        </div>
+        {!isLast && (
+          <div onClick={finish} style={{ fontSize: 12.5, fontWeight: 600, color: MUTED, cursor: "pointer", padding: "6px 4px" }}>
+            Ometre
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 5, marginTop: 14 }}>
+        {TUTORIAL.map((s, n) => (
+          <div
+            key={n}
+            onClick={() => setI(n)}
+            style={{ flex: 1, height: n === i ? 7 : 4, alignSelf: "center", borderRadius: 99, cursor: "pointer", transition: "all .2s ease", background: n === i ? step.accent : n < i ? "rgba(255,255,255,0.32)" : "rgba(255,255,255,0.12)", boxShadow: n === i ? `0 0 12px ${step.accent}` : "none" }}
+          />
+        ))}
+      </div>
+
+      <div key={i} style={{ animation: "popIn .28s ease both", marginTop: 34 }}>
+        <div style={{ width: 82, height: 82, borderRadius: 26, background: `${step.accent}1f`, border: `1px solid ${step.accent}59`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, boxShadow: `0 12px 34px ${step.accent}2e` }}>
+          {step.emoji}
+        </div>
+
+        <div style={{ fontFamily: "Anton, sans-serif", fontSize: 38, lineHeight: 0.98, letterSpacing: "-0.01em", textTransform: "uppercase", color: "#fff", marginTop: 22 }}>
+          {step.title}
+        </div>
+        <div style={{ fontSize: 15.5, lineHeight: 1.5, color: "#b8b0d8", marginTop: 12 }}>{step.body}</div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
+          {step.points.map((p, n) => (
+            <div key={n} style={{ display: "flex", alignItems: "flex-start", gap: 12, background: CARD, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "14px 15px" }}>
+              <div style={{ flex: "0 0 20px", height: 20, borderRadius: 99, background: `${step.accent}26`, color: step.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, marginTop: 1 }}>
+                {n + 1}
+              </div>
+              <div style={{ fontSize: 14, lineHeight: 1.4, color: "#d9d4f0" }}>{p}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+        <div style={{ width: "100%", maxWidth: 430, padding: "18px 22px 26px", background: "linear-gradient(180deg,rgba(5,4,10,0) 0%,#05040a 45%)", pointerEvents: "auto", display: "flex", gap: 10 }}>
+          {i > 0 && (
+            <div
+              onClick={() => setI(i - 1)}
+              style={{ flex: "0 0 auto", padding: "19px 22px", background: SURFACE, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 19, fontFamily: "Anton, sans-serif", fontSize: 16, letterSpacing: "0.05em", textTransform: "uppercase", color: TEXT_SOFT, cursor: "pointer" }}
+            >
+              Enrere
+            </div>
+          )}
+          <div
+            onClick={() => (isLast ? finish() : setI(i + 1))}
+            style={{ flex: 1, borderRadius: 19, padding: 19, textAlign: "center", fontFamily: "Anton, sans-serif", fontSize: 19, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", background: isLast ? "linear-gradient(95deg,#c6ff3d,#12b76a)" : "linear-gradient(95deg,#ff2d87,#ff7b3d)", color: "#0b0212", boxShadow: isLast ? "0 14px 36px rgba(198,255,61,0.3)" : "0 14px 36px rgba(255,45,135,0.32)" }}
+          >
+            {isLast ? "Preparada 🏁" : "Següent"}
           </div>
         </div>
       </div>
@@ -635,7 +805,7 @@ function fileToAvatarDataUrl(file) {
   });
 }
 
-function SettingsScreen({ state, persist, onBack }) {
+function SettingsScreen({ state, persist, onBack, onResetDone, onShowTutorial }) {
   const fileRef = useRef(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -664,16 +834,16 @@ function SettingsScreen({ state, persist, onBack }) {
 
   async function onReset() {
     setBusy(true);
+    // Torna a l'estat inicial de tot: benvinguda i tria de cara/cotxe incloses.
+    // La cara i el cotxe actuals es mantenen com a preselecció a l'onboarding.
     await persist({
       ...EMPTY_STATE,
-      hasSeenSplash: true,
-      hasOnboarded: state.hasOnboarded,
       avatar: state.avatar,
       car: state.car,
     });
     setBusy(false);
     setConfirming(false);
-    setMsg({ ok: true, text: "Progrés reiniciat. Tot torna a zero." });
+    onResetDone();
   }
 
   return (
@@ -747,6 +917,20 @@ function SettingsScreen({ state, persist, onBack }) {
         <SettingRow label="Preguntes al repàs" value={String(failedCount)} last />
       </div>
 
+      <div
+        onClick={() => !busy && onShowTutorial()}
+        style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 12, background: CARD, border: "1px solid rgba(41,231,255,0.3)", borderRadius: 20, padding: 16, cursor: "pointer" }}
+      >
+        <div style={{ flex: "0 0 40px", height: 40, borderRadius: 14, background: "rgba(41,231,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>
+          💡
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: "Anton, sans-serif", fontSize: 17, textTransform: "uppercase", color: "#fff" }}>Com funciona</div>
+          <div style={{ fontSize: 12.5, color: TEXT_SOFT, marginTop: 2 }}>Torna a veure el tutorial</div>
+        </div>
+        <div style={{ fontSize: 18, color: CYAN }}>›</div>
+      </div>
+
       <Kicker style={{ color: PINK }}>Zona perillosa</Kicker>
       {!confirming ? (
         <div
@@ -765,7 +949,7 @@ function SettingsScreen({ state, persist, onBack }) {
       ) : (
         <div style={{ background: CARD, border: "1px solid rgba(255,45,135,0.4)", borderRadius: 22, padding: 18 }}>
           <div style={{ fontSize: 13.5, lineHeight: 1.45, color: "#ffbfd8" }}>
-            S&apos;esborraran <b>tots</b> els resultats, les estadístiques i el repàs de fallades. No es pot desfer. La cara i el cotxe es mantenen.
+            S&apos;esborraran <b>tots</b> els resultats, les estadístiques i el repàs de fallades, i tornaràs a la pantalla inicial per començar de zero. No es pot desfer. La cara i el cotxe que tens ara quedaran preseleccionats.
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <div
