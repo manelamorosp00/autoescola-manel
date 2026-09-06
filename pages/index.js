@@ -7,124 +7,95 @@ import {
   passThreshold,
 } from "../lib/questions";
 import {
-  BLUE,
-  GREEN,
-  RED,
-  AMBER,
+  PINK,
+  CYAN,
+  LIME,
+  GOLD,
+  CARD,
+  SURFACE,
+  MUTED,
+  TEXT_SOFT,
   fmtTime,
   doneExamsSorted,
   computeAvg,
   computeTrend,
+  computeStreak,
+  countPassed,
   aggregateTopicStats,
   singleExamTopicStats,
+  colorForPct,
   barHeight,
+  evolutionNote,
 } from "../lib/derive";
 
-const LIMIT_SECONDS = 30 * 60; // 30 minutos, como en la DGT
-const MAX_ERRORS = 3;
+const LIMIT_SECONDS = 30 * 60; // 30 minuts, com a la DGT
 
 const EMPTY_STATE = {
   hasSeenSplash: false,
+  hasOnboarded: false,
+  avatar: null, // emoji o dataURL de foto
+  car: null, // id del cotxe escollit
   examResults: {},
   failedIds: [],
   inProgress: {},
 };
 
-/* =========================================================
-   Iconos SVG en línea
-   ========================================================= */
-const IconWheel = ({ size = 34, color = "#fff" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.8" />
-    <circle cx="12" cy="12" r="2.4" stroke={color} strokeWidth="1.8" />
-    <path d="M12 3v6.6M12 14.4V21M4.2 8l5.7 3.3M20 16l-5.7-3.3M4.2 16l5.7-3.3M20 8l-5.7 3.3" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-const IconTrendUp = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-    <path d="M4 17l6-6 4 4 6-7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const IconAlertTriangle = ({ color = "#fff", size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path d="M12 4l9 16H3L12 4z" stroke={color} strokeWidth="1.9" strokeLinejoin="round" />
-    <path d="M12 10v4" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    <circle cx="12" cy="17" r="1" fill={color} />
-  </svg>
-);
-const IconChevronRight = ({ color = "#b07b2a", size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path d="M9 6l6 6-6 6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const IconArrowLeft = ({ color = "#475467", size = 16, strokeWidth = 2.3 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path d="M15 6l-6 6 6 6" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const IconClock = ({ size = 13, color = "currentColor" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="2" />
-    <path d="M12 7v5l3.5 2" stroke={color} strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
-const IconFlag = ({ color = "currentColor", size = 12 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path d="M6 3v18M6 4h11l-2.2 4.2L17 12H6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const IconX = ({ color = "currentColor", size = 14, strokeWidth = 3 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path d="M6 6l12 12M18 6L6 18" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
-  </svg>
-);
-const IconCheck = ({ color = "currentColor", size = 14, strokeWidth = 3 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path d="M5 13l4 4L19 7" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+const AVATARS = ["🦡", "🦋", "💅", "🖤", "🔥", "👑", "🍒", "🐍", "💎", "🌹"];
+
+const CARS = [
+  { id: "supra", name: "Toyota Supra MK4", tag: "Taronja, aleró i soroll", g: "linear-gradient(140deg,#ff7b3d,#ff2d87)" },
+  { id: "r34", name: "Nissan Skyline R34", tag: "Blau baioneta", g: "linear-gradient(140deg,#29e7ff,#2d6bff)" },
+  { id: "gti", name: "Golf GTI Mk2", tag: "Clàssic de barri", g: "linear-gradient(140deg,#c6ff3d,#12b76a)" },
+  { id: "cupra", name: "Seat Ibiza Cupra", tag: "El de tota la vida", g: "linear-gradient(140deg,#ffd166,#ff7b3d)" },
+  { id: "e46", name: "BMW E46 M3", tag: "Negre, vidres tintats", g: "linear-gradient(140deg,#8d85ad,#2b2740)" },
+  { id: "s3", name: "Audi S3 8L", tag: "Gris nardo, llantes crom", g: "linear-gradient(140deg,#e9e5ff,#7b2dff)" },
+];
+
+const REWARDS = [
+  { emoji: "🔦", label: "Neons sota el xassís" },
+  { emoji: "💿", label: "Llantes cromades" },
+  { emoji: "🔊", label: "Equip de so brutal" },
+  { emoji: "🏁", label: "Vinils de competició" },
+  { emoji: "🪽", label: "Aleró posterior" },
+  { emoji: "🔑", label: "Les claus de veritat" },
+];
 
 /* =========================================================
-   Estilos reutilizables (fieles al prototipo)
+   Estils compartits
    ========================================================= */
-const cardStyle = {
-  background: "#ffffff",
-  border: "1px solid #e8ebf2",
-  borderRadius: 22,
-  padding: 18,
-  boxShadow: "0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.05)",
+const panelStyle = {
+  borderRadius: 24,
+  background: CARD,
+  border: "1px solid rgba(255,255,255,0.08)",
 };
-const sectionTitleStyle = {
-  fontFamily: "Manrope, sans-serif",
-  fontWeight: 800,
-  fontSize: 13,
-  letterSpacing: "0.09em",
+const kickerStyle = {
+  fontFamily: "Anton, sans-serif",
+  fontSize: 14,
+  letterSpacing: "0.16em",
   textTransform: "uppercase",
-  color: "#98a2b3",
-  margin: "26px 0 12px",
+  color: MUTED,
+  margin: "28px 0 12px",
 };
-function SectionTitle({ children }) {
-  return <div style={sectionTitleStyle}>{children}</div>;
+function Kicker({ children, style }) {
+  return <div style={{ ...kickerStyle, ...style }}>{children}</div>;
 }
 
 /* =========================================================
-   Componente raíz
+   Component arrel
    ========================================================= */
 export default function AutoescolaApp() {
   const [state, setState] = useState(null);
   const [saveOk, setSaveOk] = useState(true);
   const [screen, setScreen] = useState({ name: "loading" });
-  const stateRef = useRef(null);
-  stateRef.current = state;
 
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch("/api/state");
         const json = await res.json();
-        const data = json.data || EMPTY_STATE;
+        const data = { ...EMPTY_STATE, ...(json.data || {}) };
         setState(data);
-        setScreen({ name: data.hasSeenSplash ? "home" : "splash" });
+        setScreen({ name: !data.hasSeenSplash ? "splash" : !data.hasOnboarded ? "onboard" : "home" });
       } catch (e) {
         console.error(e);
         setState(EMPTY_STATE);
@@ -152,8 +123,8 @@ export default function AutoescolaApp() {
   if (!state || screen.name === "loading") {
     return (
       <Shell>
-        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#98a2b3", fontSize: 14 }}>
-          Cargando…
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: MUTED, fontSize: 14 }}>
+          Carregant…
         </div>
       </Shell>
     );
@@ -165,8 +136,20 @@ export default function AutoescolaApp() {
         <SplashScreen
           onEnter={async () => {
             await persist({ ...state, hasSeenSplash: true });
-            setScreen({ name: "home" });
+            setScreen({ name: state.hasOnboarded ? "home" : "onboard" });
           }}
+        />
+      </Shell>
+    );
+  }
+
+  if (screen.name === "onboard") {
+    return (
+      <Shell>
+        <OnboardScreen
+          state={state}
+          persist={persist}
+          onDone={() => setScreen({ name: "home" })}
         />
       </Shell>
     );
@@ -184,7 +167,16 @@ export default function AutoescolaApp() {
             const scr = startReviewScreen(state, 0);
             if (scr) setScreen(scr);
           }}
+          onOpenSettings={() => setScreen({ name: "settings" })}
         />
+      </Shell>
+    );
+  }
+
+  if (screen.name === "settings") {
+    return (
+      <Shell>
+        <SettingsScreen state={state} persist={persist} onBack={() => setScreen({ name: "home" })} />
       </Shell>
     );
   }
@@ -192,12 +184,7 @@ export default function AutoescolaApp() {
   if (screen.name === "exam") {
     return (
       <Shell>
-        <ExamScreen
-          screen={screen}
-          setScreen={setScreen}
-          state={state}
-          persist={persist}
-        />
+        <ExamScreen screen={screen} setScreen={setScreen} state={state} persist={persist} />
       </Shell>
     );
   }
@@ -209,7 +196,7 @@ export default function AutoescolaApp() {
           screen={screen}
           state={state}
           onHome={() => setScreen({ name: "home" })}
-          onRepeat={() => setScreen(startExamScreen(screen.examNum))}
+          onRepeat={() => setScreen(startExamScreen(screen.nextExamNum || screen.examNum))}
         />
       </Shell>
     );
@@ -220,25 +207,24 @@ export default function AutoescolaApp() {
 
 function Shell({ children }) {
   return (
-    <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#f6f7fb", position: "relative", overflow: "hidden" }}>
+    <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#05040a", position: "relative", overflow: "hidden" }}>
       {children}
     </div>
   );
 }
 
 /* =========================================================
-   Construcción / transición de pantallas de examen
+   Transicions d'examen
    ========================================================= */
 function startExamScreen(examNum) {
   const ids = buildExamIds(examNum);
-  const exam = buildExamQuestions(ids, examNum);
   return {
     name: "exam",
     key: String(examNum),
     examNum,
     ids,
     title: `Examen ${String(examNum).padStart(2, "0")}`,
-    exam,
+    exam: buildExamQuestions(ids, examNum),
     qIndex: 0,
     answers: {},
     flags: {},
@@ -250,14 +236,13 @@ function startExamScreen(examNum) {
 function startReviewScreen(state, chunkIndex) {
   const ids = reviewChunkIds(state.failedIds, chunkIndex);
   if (!ids.length) return null;
-  const exam = buildExamQuestions(ids, 9000 + chunkIndex);
   return {
     name: "exam",
     key: "review",
     examNum: null,
     ids,
     title: "Repàs de fallades",
-    exam,
+    exam: buildExamQuestions(ids, 9000 + chunkIndex),
     qIndex: 0,
     answers: {},
     flags: {},
@@ -268,14 +253,13 @@ function startReviewScreen(state, chunkIndex) {
 
 function resumeScreen(state, key) {
   const saved = state.inProgress[key];
-  const exam = buildExamQuestions(saved.ids, key === "review" ? 9000 : saved.examNum);
   return {
     name: "exam",
     key,
     examNum: saved.examNum,
     ids: saved.ids,
     title: saved.title,
-    exam,
+    exam: buildExamQuestions(saved.ids, key === "review" ? 9000 : saved.examNum),
     qIndex: saved.qIndex || 0,
     answers: saved.answers || {},
     flags: saved.flags || {},
@@ -285,138 +269,243 @@ function resumeScreen(state, key) {
 }
 
 /* =========================================================
-   PANTALLA 1 · SPLASH
+   1 · SPLASH
    ========================================================= */
 function SplashScreen({ onEnter }) {
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        padding: "0 26px",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        gap: 26,
-        background: "linear-gradient(178deg,#0b3fb8 0%,#155dfc 55%,#3b7bff 100%)",
-        color: "#ffffff",
-      }}
-    >
-      <div style={{ width: 64, height: 64, borderRadius: 22, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <IconWheel />
-      </div>
-      <div>
-        <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.72 }}>
-          Autoescola Manel
+    <div style={{ position: "relative", minHeight: "100vh", padding: "0 24px", display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 28, background: "radial-gradient(120% 80% at 15% 0%,#3b0d4d 0%,#0a0616 55%,#05040a 100%)", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: -90, right: -70, width: 280, height: 280, borderRadius: 99, background: "radial-gradient(circle,#ff2d87 0%,rgba(255,45,135,0) 70%)", filter: "blur(10px)", animation: "glowPulse 4s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", bottom: 180, left: -90, width: 240, height: 240, borderRadius: 99, background: "radial-gradient(circle,#29e7ff 0%,rgba(41,231,255,0) 70%)", filter: "blur(12px)", animation: "glowPulse 5.5s ease-in-out infinite" }} />
+
+      <div style={{ position: "relative", paddingBottom: 8, animation: "floatUp .6s ease both" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid rgba(255,255,255,0.16)", borderRadius: 99, padding: "7px 13px", fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#c9c2e8" }}>
+          Autoescola Manel · Teòric B
         </div>
-        <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 42, lineHeight: 1.04, letterSpacing: "-0.03em", marginTop: 12 }}>
-          Hola, Ares.
+        <div style={{ fontFamily: "Anton, sans-serif", fontSize: 74, lineHeight: 0.86, letterSpacing: "-0.02em", textTransform: "uppercase", marginTop: 20, background: "linear-gradient(100deg,#ffffff 0%,#ff2d87 38%,#29e7ff 68%,#ffffff 100%)", backgroundSize: "200% auto", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animation: "shine 6s linear infinite" }}>
+          Ares
           <br />
-          Has dit que estaves preparada.
+          al
+          <br />
+          volant
         </div>
-        <div style={{ fontSize: 16, lineHeight: 1.5, opacity: 0.85, marginTop: 16, maxWidth: 330 }}>
-          Deu examens de 30 preguntes, 30 minuts, 3 errors permesos. Exactament com el de la DGT. Ni una pista fins al final.
+        <div style={{ fontSize: 16.5, lineHeight: 1.45, color: "#b8b0d8", marginTop: 20, maxWidth: 330 }}>
+          Vas dir que estaves preparada. 30 preguntes, 30 minuts, 3 errors i fora. Sense pistes, sense ajudes, sense excuses.
         </div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div
-          onClick={onEnter}
-          style={{ background: "#ffffff", color: "#0b3fb8", borderRadius: 18, padding: 19, textAlign: "center", fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 17, cursor: "pointer", boxShadow: "0 12px 30px rgba(6,24,68,0.28)" }}
-        >
-          Comencem
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 11, paddingBottom: 34, animation: "floatUp .6s .12s ease both" }}>
+        <div onClick={onEnter} style={{ background: "linear-gradient(95deg,#ff2d87,#ff7b3d)", color: "#0b0212", borderRadius: 20, padding: 20, textAlign: "center", fontFamily: "Anton, sans-serif", fontSize: 21, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 14px 40px rgba(255,45,135,0.38)" }}>
+          Arrenquem
         </div>
-        <div style={{ textAlign: "center", fontSize: 13, opacity: 0.7 }}>Sort, Suricata 🦡</div>
+        <div style={{ textAlign: "center", fontSize: 12.5, color: MUTED }}>Fet per a tu, amb paciència infinita 🖤</div>
       </div>
     </div>
   );
 }
 
 /* =========================================================
-   PANTALLA 2 · HOME
+   2 · ONBOARDING (cara + cotxe)
    ========================================================= */
-function HomeScreen({ state, saveOk, onStart, onResume, onStartReview }) {
-  const total = 10;
+function OnboardScreen({ state, persist, onDone }) {
+  const [avatar, setAvatar] = useState(state.avatar || null);
+  const [car, setCar] = useState(state.car || null);
+  const [busy, setBusy] = useState(false);
+  const ready = !!avatar && !!car;
+
+  async function finish() {
+    if (!ready || busy) return;
+    setBusy(true);
+    await persist({ ...state, avatar, car, hasOnboarded: true });
+    setBusy(false);
+    onDone();
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", padding: "30px 22px 130px", background: "radial-gradient(110% 60% at 90% 0%,#1b0b3a 0%,#05040a 70%)", animation: "popIn .3s ease both" }}>
+      <div style={{ fontFamily: "Anton, sans-serif", fontSize: 34, lineHeight: 0.95, letterSpacing: "-0.01em", textTransform: "uppercase", color: "#fff" }}>
+        Abans d&apos;
+        <br />
+        arrencar
+      </div>
+      <div style={{ fontSize: 14.5, color: TEXT_SOFT, marginTop: 10 }}>
+        Tria la teva cara i el teu cotxe. Sortiran al teu perfil i a cada examen que aprovis.
+      </div>
+
+      <Kicker style={{ color: PINK }}>1 · La teva cara</Kicker>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 9 }}>
+        {AVATARS.map((emoji) => {
+          const on = avatar === emoji;
+          return (
+            <div
+              key={emoji}
+              onClick={() => setAvatar(emoji)}
+              style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, borderRadius: 16, cursor: "pointer", transition: "all .16s ease", background: on ? "linear-gradient(140deg,#ff2d87,#7b2dff)" : SURFACE, border: `1px solid ${on ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.09)"}`, transform: on ? "scale(1.06)" : "none", boxShadow: on ? "0 8px 22px rgba(255,45,135,0.4)" : "none" }}
+            >
+              {emoji}
+            </div>
+          );
+        })}
+      </div>
+
+      <Kicker style={{ color: CYAN }}>2 · El teu cotxe</Kicker>
+      <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+        {CARS.map((c) => {
+          const on = car === c.id;
+          return (
+            <div
+              key={c.id}
+              onClick={() => setCar(c.id)}
+              style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 20, cursor: "pointer", transition: "all .16s ease", background: on ? "rgba(41,231,255,0.09)" : CARD, border: `1px solid ${on ? "rgba(41,231,255,0.55)" : "rgba(255,255,255,0.08)"}`, boxShadow: on ? "0 10px 28px rgba(41,231,255,0.16)" : "none" }}
+            >
+              <div style={{ flex: "0 0 52px", height: 40, borderRadius: 13, background: c.g }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "Anton, sans-serif", fontSize: 19, letterSpacing: "0.01em", textTransform: "uppercase", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {c.name}
+                </div>
+                <div style={{ fontSize: 12.5, color: TEXT_SOFT, marginTop: 2 }}>{c.tag}</div>
+              </div>
+              <div style={{ flex: "0 0 26px", height: 26, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: on ? "#05040a" : "transparent", background: on ? CYAN : "rgba(255,255,255,0.06)" }}>
+                ✓
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+        <div style={{ width: "100%", maxWidth: 430, padding: "18px 22px 26px", background: "linear-gradient(180deg,rgba(5,4,10,0) 0%,#05040a 45%)", pointerEvents: "auto" }}>
+          <div
+            onClick={finish}
+            style={{ borderRadius: 20, padding: 20, textAlign: "center", fontFamily: "Anton, sans-serif", fontSize: 20, letterSpacing: "0.06em", textTransform: "uppercase", cursor: ready ? "pointer" : "default", transition: "all .2s ease", background: ready ? "linear-gradient(95deg,#ff2d87,#ff7b3d)" : SURFACE, color: ready ? "#0b0212" : MUTED, border: `1px solid ${ready ? "transparent" : "rgba(255,255,255,0.1)"}`, boxShadow: ready ? "0 14px 36px rgba(255,45,135,0.34)" : "none" }}
+          >
+            {ready ? "Llesta, al lio" : "Tria cara i cotxe"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   Avatar reutilitzable (emoji o foto)
+   ========================================================= */
+function AvatarBadge({ avatar, size = 52, radius = 18, fontSize }) {
+  const isPhoto = typeof avatar === "string" && avatar.startsWith("data:");
+  if (isPhoto) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={avatar} alt="Perfil" style={{ flex: `0 0 ${size}px`, width: size, height: size, borderRadius: radius, objectFit: "cover", border: "1px solid rgba(255,255,255,0.18)", display: "block" }} />
+    );
+  }
+  return (
+    <div style={{ flex: `0 0 ${size}px`, height: size, borderRadius: radius, background: "linear-gradient(140deg,#ff2d87,#7b2dff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: fontSize || size * 0.5, boxShadow: "0 8px 24px rgba(255,45,135,0.3)" }}>
+      {avatar || "🦡"}
+    </div>
+  );
+}
+
+/* =========================================================
+   3 · HOME
+   ========================================================= */
+function HomeScreen({ state, saveOk, onStart, onResume, onStartReview, onOpenSettings }) {
+  const TOTAL_EXAMS = 10;
+  const QTOTAL = 30;
   const examResults = state.examResults || {};
   const failedIds = state.failedIds || [];
   const inProgress = state.inProgress || {};
 
+  const done = doneExamsSorted(examResults);
   const avg = computeAvg(examResults);
   const trend = computeTrend(examResults);
-  const done = doneExamsSorted(examResults);
-  const passedCount = done.filter((r) => r.pass).length;
-  const doneCount = done.length;
+  const streak = computeStreak(examResults);
+  const passedCount = countPassed(examResults);
   const failedCount = failedIds.length;
   const weakTopics = aggregateTopicStats(examResults, { minAnswered: 3, limit: 4 });
   const reviewInProgress = inProgress["review"];
+  const car = CARS.find((c) => c.id === state.car);
+
+  // Primer examen que encara no s'ha fet ni començat → "Et toca"
+  let nextExam = null;
+  for (let n = 1; n <= TOTAL_EXAMS; n++) {
+    if (!examResults[n] && !inProgress[String(n)]) {
+      nextExam = n;
+      break;
+    }
+  }
+
+  const up = trend !== null && trend >= 0;
 
   return (
-    <div style={{ padding: "22px 18px 40px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
-        <div>
-          <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 26, letterSpacing: "-0.02em" }}>Teòric B</div>
-          <div style={{ fontSize: 13, color: "#667085", marginTop: 2 }}>Autoescola Manel · per l&apos;Ares</div>
+    <div style={{ padding: "24px 18px 44px", background: "radial-gradient(90% 40% at 100% 0%,#1b0b3a 0%,#05040a 60%)", animation: "popIn .3s ease both" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 22 }}>
+        <AvatarBadge avatar={state.avatar} size={52} radius={18} fontSize={26} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Anton, sans-serif", fontSize: 24, lineHeight: 1, letterSpacing: "0.01em", textTransform: "uppercase", color: "#fff" }}>Ares</div>
+          <div style={{ fontSize: 12.5, color: "#8d85ad", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {car ? car.name : "Sense cotxe encara"} · nivell {passedCount + 1}
+          </div>
         </div>
-        <div style={{ width: 42, height: 42, borderRadius: 14, background: BLUE, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Manrope, sans-serif", fontWeight: 800, color: "#fff", fontSize: 15 }}>
-          A
+        {streak > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, border: "1px solid rgba(255,209,102,0.35)", background: "rgba(255,209,102,0.1)", borderRadius: 99, padding: "8px 12px", fontFamily: "Anton, sans-serif", fontSize: 14, letterSpacing: "0.06em", color: GOLD }}>
+            🔥 {streak}
+          </div>
+        )}
+        <div
+          onClick={onOpenSettings}
+          title="Configuració"
+          style={{ flex: "0 0 40px", height: 40, borderRadius: 14, background: SURFACE, border: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 17, color: TEXT_SOFT }}
+        >
+          ⚙
         </div>
       </div>
 
       {avg === null ? (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "26px 20px" }}>
-          <div style={{ width: 46, height: 46, borderRadius: 14, background: "#e8f0ff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-            <IconWheel size={22} color={BLUE} />
+        <div style={{ position: "relative", borderRadius: 26, padding: 24, background: "linear-gradient(150deg,rgba(255,45,135,0.14),rgba(41,231,255,0.08))", border: "1px solid rgba(255,255,255,0.1)", textAlign: "center" }}>
+          <div style={{ fontSize: 34 }}>🏁</div>
+          <div style={{ fontFamily: "Anton, sans-serif", fontSize: 24, textTransform: "uppercase", color: "#fff", marginTop: 10 }}>
+            Encara no has fet cap examen
           </div>
-          <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 16 }}>Encara no has fet cap examen</div>
-          <div style={{ fontSize: 13, color: "#667085", marginTop: 6, lineHeight: 1.45 }}>
-            Comença el primer per veure aquí la teva nota mitjana i com evoluciones.
+          <div style={{ fontSize: 13.5, color: TEXT_SOFT, marginTop: 8, lineHeight: 1.45 }}>
+            Comença el primer i aquí veuràs la teva nota mitjana, la ratxa i on flaqueges.
           </div>
         </div>
       ) : (
-        <div style={cardStyle}>
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+        <div style={{ position: "relative", borderRadius: 26, padding: 20, background: "linear-gradient(150deg,rgba(255,45,135,0.14),rgba(41,231,255,0.08))", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#98a2b3" }}>Nota mitjana</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
-                <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 38, lineHeight: 1, letterSpacing: "-0.02em" }}>{avg}</div>
-                <div style={{ fontSize: 15, color: "#98a2b3", fontWeight: 600 }}>/ 30</div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: TEXT_SOFT }}>Nota mitjana</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 6 }}>
+                <div style={{ fontFamily: "Anton, sans-serif", fontSize: 52, lineHeight: 0.82, letterSpacing: "-0.02em", color: "#fff" }}>{avg}</div>
+                <div style={{ fontSize: 15, color: "#8d85ad", fontWeight: 600 }}>/ {QTOTAL}</div>
               </div>
             </div>
-            {trend && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#e7f9f1", color: "#087443", borderRadius: 99, padding: "6px 11px", fontSize: 12.5, fontWeight: 700 }}>
-                <IconTrendUp /> {trend}
+            {trend !== null && (
+              <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 5, borderRadius: 99, padding: "8px 12px", fontFamily: "Anton, sans-serif", fontSize: 13, letterSpacing: "0.04em", background: up ? "rgba(198,255,61,0.12)" : "rgba(255,45,135,0.14)", border: `1px solid ${up ? "rgba(198,255,61,0.35)" : "rgba(255,45,135,0.35)"}`, color: up ? LIME : PINK }}>
+                {up ? `▲ +${trend}` : `▼ ${trend}`} vs. anterior
               </div>
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 7, height: 76, marginTop: 18 }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80, marginTop: 20 }}>
             {done.map((r) => (
-              <div key={r.num} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, justifyContent: "flex-end", height: "100%" }}>
-                <div style={{ width: "100%", height: barHeight(r.score, 30, 52), borderRadius: 6, background: r.pass ? GREEN : "#c7d5f7", transition: "height .4s ease" }} />
-                <div style={{ fontSize: 10, color: "#b3bac8", fontWeight: 600 }}>{String(r.num).padStart(2, "0")}</div>
+              <div key={r.num} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 7, justifyContent: "flex-end", height: "100%" }}>
+                <div style={{ width: "100%", height: barHeight(r.score, QTOTAL, 54), borderRadius: 6, background: r.pass ? "linear-gradient(180deg,#c6ff3d,#12b76a)" : "linear-gradient(180deg,#ff2d87,#7b2dff)", transition: "height .45s ease" }} />
+                <div style={{ fontSize: 10, color: MUTED, fontWeight: 600 }}>{String(r.num).padStart(2, "0")}</div>
               </div>
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: 14, marginTop: 16, paddingTop: 15, borderTop: "1px solid #eef1f7" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 19 }}>{passedCount}/{total}</div>
-              <div style={{ fontSize: 11.5, color: "#98a2b3", fontWeight: 600 }}>Aprovats</div>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 19 }}>{doneCount}/{total}</div>
-              <div style={{ fontSize: 11.5, color: "#98a2b3", fontWeight: 600 }}>Realitzats</div>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 19, color: AMBER }}>{failedCount}</div>
-              <div style={{ fontSize: 11.5, color: "#98a2b3", fontWeight: 600 }}>En repàs</div>
-            </div>
+          <div style={{ display: "flex", gap: 12, marginTop: 18, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.09)" }}>
+            <StatCell value={`${passedCount}/${TOTAL_EXAMS}`} label="Aprovats" color={LIME} />
+            <StatCell value={`${done.length}/${TOTAL_EXAMS}`} label="Fets" color="#fff" />
+            <StatCell value={String(failedCount)} label="En repàs" color={PINK} />
           </div>
         </div>
       )}
 
       {weakTopics.length > 0 && (
         <>
-          <SectionTitle>On flaqueges</SectionTitle>
-          <div style={{ ...cardStyle, padding: "6px 18px 14px" }}>
+          <Kicker>On flaqueges</Kicker>
+          <div style={{ ...panelStyle, padding: "6px 18px 14px" }}>
             {weakTopics.map((t) => (
               <TopicRow key={t.name} t={t} />
             ))}
@@ -424,41 +513,45 @@ function HomeScreen({ state, saveOk, onStart, onResume, onStartReview }) {
         </>
       )}
 
-      <SectionTitle>Examens</SectionTitle>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {Array.from({ length: total }, (_, i) => i + 1).map((n) => {
+      <Kicker>Examens</Kicker>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11 }}>
+        {Array.from({ length: TOTAL_EXAMS }, (_, i) => i + 1).map((n) => {
           const r = examResults[n];
           const prog = inProgress[String(n)];
           let st = "pending";
           if (prog) st = "progress";
           else if (r && r.done) st = r.pass ? "pass" : "fail";
-          const color = st === "pass" ? GREEN : st === "fail" ? RED : st === "progress" ? AMBER : "#d0d5dd";
+          else if (n === nextExam) st = "next";
+
+          const color = st === "pass" ? LIME : st === "fail" ? PINK : st === "progress" ? GOLD : st === "next" ? CYAN : "#3a3455";
           const label =
             st === "pass"
-              ? `Aprovat · ${r.score}/30`
+              ? `Aprovat · ${r.score}/${QTOTAL}`
               : st === "fail"
-              ? `Suspès · ${r.score}/30`
+              ? `Suspès · ${r.score}/${QTOTAL}`
               : st === "progress"
-              ? `Pregunta ${prog.qIndex + 1}/30`
+              ? `Anaves per la ${prog.qIndex + 1}`
+              : st === "next"
+              ? "Et toca"
               : "Pendent";
+          const icon = st === "pass" ? "✓" : st === "fail" ? "✕" : st === "progress" ? "⏱" : "";
+
           return (
             <div
               key={n}
               onClick={() => (prog ? onResume(String(n)) : onStart(n))}
-              style={{ position: "relative", background: "#ffffff", border: "1px solid #e8ebf2", borderRadius: 20, padding: "15px 15px 14px", cursor: "pointer", boxShadow: "0 1px 2px rgba(16,24,40,0.04)" }}
+              style={{ position: "relative", background: st === "next" ? "rgba(41,231,255,0.08)" : CARD, border: `1px solid ${st === "next" ? "rgba(41,231,255,0.45)" : "rgba(255,255,255,0.08)"}`, borderRadius: 22, padding: 16, cursor: "pointer", transition: "transform .12s ease" }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 22, letterSpacing: "-0.02em", color: "#101828" }}>
+                <div style={{ fontFamily: "Anton, sans-serif", fontSize: 30, lineHeight: 0.9, letterSpacing: "-0.01em", color: "#fff" }}>
                   {String(n).padStart(2, "0")}
                 </div>
-                <div style={{ width: 22, height: 22, borderRadius: 99, background: st === "pending" ? "#f2f4f9" : color, color: "#fff", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {st === "pass" && <IconCheck size={11} />}
-                  {st === "fail" && <IconX size={11} />}
-                  {st === "progress" && <IconClock size={11} color="#fff" />}
+                <div style={{ width: 24, height: 24, borderRadius: 99, background: st === "pending" ? "rgba(255,255,255,0.06)" : color, color: "#05040a", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: st === "pending" ? "none" : `0 0 14px ${color}70` }}>
+                  {icon}
                 </div>
               </div>
-              <div style={{ fontSize: 11.5, color: "#98a2b3", fontWeight: 600, marginTop: 10 }}>Examen</div>
-              <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 13, marginTop: 2, color: st === "pending" ? "#98a2b3" : color }}>{label}</div>
+              <div style={{ fontSize: 10.5, color: MUTED, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginTop: 12 }}>Examen</div>
+              <div style={{ fontFamily: "Anton, sans-serif", fontSize: 14, letterSpacing: "0.03em", marginTop: 3, color: st === "pending" ? MUTED : color }}>{label}</div>
             </div>
           );
         })}
@@ -466,60 +559,251 @@ function HomeScreen({ state, saveOk, onStart, onResume, onStartReview }) {
 
       <div
         onClick={() => (reviewInProgress ? onResume("review") : failedCount > 0 ? onStartReview() : null)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          marginTop: 14,
-          background: "#fff8ef",
-          border: "1px solid #f7dfba",
-          borderRadius: 20,
-          padding: 17,
-          cursor: reviewInProgress || failedCount > 0 ? "pointer" : "default",
-          opacity: reviewInProgress || failedCount > 0 ? 1 : 0.6,
-        }}
+        style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 13, background: "linear-gradient(100deg,rgba(255,45,135,0.16),rgba(255,123,61,0.08))", border: "1px solid rgba(255,45,135,0.3)", borderRadius: 22, padding: 18, cursor: reviewInProgress || failedCount > 0 ? "pointer" : "default", opacity: reviewInProgress || failedCount > 0 ? 1 : 0.55 }}
       >
-        <div style={{ flex: "0 0 40px", height: 40, borderRadius: 14, background: AMBER, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <IconAlertTriangle />
+        <div style={{ flex: "0 0 44px", height: 44, borderRadius: 15, background: "linear-gradient(140deg,#ff2d87,#ff7b3d)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+          🥊
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 15, color: "#7a4a06" }}>
+          <div style={{ fontFamily: "Anton, sans-serif", fontSize: 18, letterSpacing: "0.02em", textTransform: "uppercase", color: "#fff" }}>
             {reviewInProgress ? "Repàs en curs" : "Repàs de fallades"}
           </div>
-          <div style={{ fontSize: 12.5, color: "#9a6a2a", marginTop: 2 }}>
+          <div style={{ fontSize: 12.5, color: "#c6a8c8", marginTop: 2 }}>
             {reviewInProgress
-              ? `Pregunta ${reviewInProgress.qIndex + 1}/${reviewInProgress.ids.length} · continua on ho vas deixar`
+              ? `Anaves per la ${reviewInProgress.qIndex + 1} de ${reviewInProgress.ids.length}`
               : failedCount > 0
-              ? `${failedCount} preguntes pendents de dominar`
+              ? `${failedCount} preguntes que encara et poden`
               : "Encara no tens cap pregunta fallada"}
           </div>
         </div>
-        {(reviewInProgress || failedCount > 0) && <IconChevronRight />}
+        {(reviewInProgress || failedCount > 0) && <div style={{ fontSize: 18, color: PINK }}>›</div>}
       </div>
 
-      <div style={{ textAlign: "center", fontSize: 11.5, color: saveOk ? "#b3bac8" : RED, marginTop: 26 }}>
-        {saveOk ? "El teu progrés es desa automàticament." : "Avís: no s'ha pogut desar el progrés. Comprova la connexió."}
+      <div style={{ textAlign: "center", fontSize: 11.5, color: saveOk ? "#4e4870" : PINK, marginTop: 26 }}>
+        {saveOk ? "El teu progrés es desa sol." : "Avís: no s'ha pogut desar el progrés. Comprova la connexió."}
       </div>
+    </div>
+  );
+}
+
+function StatCell({ value, label, color }) {
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{ fontFamily: "Anton, sans-serif", fontSize: 22, color }}>{value}</div>
+      <div style={{ fontSize: 11, color: "#8d85ad", fontWeight: 600, letterSpacing: "0.04em" }}>{label}</div>
     </div>
   );
 }
 
 function TopicRow({ t }) {
   return (
-    <div style={{ padding: "12px 0", borderBottom: "1px solid #f2f4f9" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 8 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.25 }}>{t.name}</div>
-        <div style={{ flex: "0 0 auto", fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 13, color: t.color }}>{t.pct}%</div>
+    <div style={{ padding: "13px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 9 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.25, color: "#e9e5ff" }}>{t.name}</div>
+        <div style={{ flex: "0 0 auto", fontFamily: "Anton, sans-serif", fontSize: 16, letterSpacing: "0.02em", color: t.color }}>{t.pct}%</div>
       </div>
-      <div style={{ height: 7, borderRadius: 99, background: "#f2f4f9", overflow: "hidden" }}>
-        <div style={{ width: `${t.pct}%`, height: "100%", borderRadius: 99, background: t.color, transition: "width .5s ease" }} />
+      <div style={{ height: 8, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+        <div style={{ width: `${t.pct}%`, height: "100%", borderRadius: 99, background: t.color, boxShadow: `0 0 12px ${t.color}80`, transition: "width .5s ease" }} />
       </div>
     </div>
   );
 }
 
 /* =========================================================
-   PANTALLA 3 · EXAMEN
+   4 · CONFIGURACIÓ
+   ========================================================= */
+function fileToAvatarDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("No s'ha pogut llegir el fitxer"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("El fitxer no sembla una imatge"));
+      img.onload = () => {
+        const S = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = S;
+        canvas.height = S;
+        const ctx = canvas.getContext("2d");
+        const min = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, S, S);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function SettingsScreen({ state, persist, onBack }) {
+  const fileRef = useRef(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const doneCount = doneExamsSorted(state.examResults).length;
+  const failedCount = (state.failedIds || []).length;
+  const inProgressCount = Object.keys(state.inProgress || {}).length;
+
+  async function onPickFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      await persist({ ...state, avatar: dataUrl });
+      setMsg({ ok: true, text: "Foto de perfil actualitzada." });
+    } catch (err) {
+      console.error(err);
+      setMsg({ ok: false, text: "No s'ha pogut carregar la imatge." });
+    }
+    setBusy(false);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function onReset() {
+    setBusy(true);
+    await persist({
+      ...EMPTY_STATE,
+      hasSeenSplash: true,
+      hasOnboarded: state.hasOnboarded,
+      avatar: state.avatar,
+      car: state.car,
+    });
+    setBusy(false);
+    setConfirming(false);
+    setMsg({ ok: true, text: "Progrés reiniciat. Tot torna a zero." });
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", padding: "24px 18px 44px", background: "radial-gradient(90% 40% at 0% 0%,#1b0b3a 0%,#05040a 60%)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+        <div onClick={onBack} style={{ width: 36, height: 36, borderRadius: 13, background: SURFACE, border: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: TEXT_SOFT, fontSize: 17 }}>
+          ‹
+        </div>
+        <div style={{ fontFamily: "Anton, sans-serif", fontSize: 28, letterSpacing: "0.02em", textTransform: "uppercase", color: "#fff" }}>Configuració</div>
+      </div>
+
+      <Kicker>El teu perfil</Kicker>
+      <div style={{ ...panelStyle, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
+        <AvatarBadge avatar={state.avatar} size={70} radius={22} fontSize={34} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Anton, sans-serif", fontSize: 22, textTransform: "uppercase", color: "#fff" }}>Ares</div>
+          <div style={{ fontSize: 12.5, color: TEXT_SOFT, marginTop: 2 }}>
+            {(CARS.find((c) => c.id === state.car) || {}).name || "Sense cotxe"}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 9, marginTop: 12 }}>
+        {AVATARS.map((emoji) => {
+          const on = state.avatar === emoji;
+          return (
+            <div
+              key={emoji}
+              onClick={() => !busy && persist({ ...state, avatar: emoji })}
+              style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, borderRadius: 15, cursor: "pointer", transition: "all .16s ease", background: on ? "linear-gradient(140deg,#ff2d87,#7b2dff)" : SURFACE, border: `1px solid ${on ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.09)"}`, transform: on ? "scale(1.06)" : "none" }}
+            >
+              {emoji}
+            </div>
+          );
+        })}
+      </div>
+      <div
+        onClick={() => !busy && fileRef.current && fileRef.current.click()}
+        style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 16, background: SURFACE, border: "1px solid rgba(41,231,255,0.35)", color: CYAN, fontFamily: "Anton, sans-serif", fontSize: 15, letterSpacing: "0.05em", textTransform: "uppercase", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}
+      >
+        📷 {typeof state.avatar === "string" && state.avatar.startsWith("data:") ? "Canviar la foto" : "Fer servir una foto teva"}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: "none" }} />
+
+      <Kicker>El teu cotxe</Kicker>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {CARS.map((c) => {
+          const on = state.car === c.id;
+          return (
+            <div
+              key={c.id}
+              onClick={() => !busy && persist({ ...state, car: c.id })}
+              style={{ display: "flex", alignItems: "center", gap: 14, padding: 13, borderRadius: 18, cursor: "pointer", background: on ? "rgba(41,231,255,0.09)" : CARD, border: `1px solid ${on ? "rgba(41,231,255,0.55)" : "rgba(255,255,255,0.08)"}` }}
+            >
+              <div style={{ flex: "0 0 44px", height: 34, borderRadius: 11, background: c.g }} />
+              <div style={{ flex: 1, minWidth: 0, fontFamily: "Anton, sans-serif", fontSize: 17, textTransform: "uppercase", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {c.name}
+              </div>
+              <div style={{ flex: "0 0 24px", height: 24, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: on ? "#05040a" : "transparent", background: on ? CYAN : "rgba(255,255,255,0.06)" }}>
+                ✓
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <Kicker>El teu progrés</Kicker>
+      <div style={{ ...panelStyle, padding: "4px 18px 10px" }}>
+        <SettingRow label="Examens finalitzats" value={String(doneCount)} />
+        <SettingRow label="Començats sense acabar" value={String(inProgressCount)} />
+        <SettingRow label="Preguntes al repàs" value={String(failedCount)} last />
+      </div>
+
+      <Kicker style={{ color: PINK }}>Zona perillosa</Kicker>
+      {!confirming ? (
+        <div
+          onClick={() => !busy && setConfirming(true)}
+          style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,45,135,0.08)", border: "1px solid rgba(255,45,135,0.35)", borderRadius: 22, padding: 18, cursor: "pointer" }}
+        >
+          <div style={{ flex: "0 0 44px", height: 44, borderRadius: 15, background: "rgba(255,45,135,0.16)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+            🗑️
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "Anton, sans-serif", fontSize: 18, textTransform: "uppercase", color: PINK }}>Reiniciar el progrés</div>
+            <div style={{ fontSize: 12.5, color: TEXT_SOFT, marginTop: 2 }}>Esborra notes, estadístiques i fallades</div>
+          </div>
+          <div style={{ fontSize: 18, color: PINK }}>›</div>
+        </div>
+      ) : (
+        <div style={{ background: CARD, border: "1px solid rgba(255,45,135,0.4)", borderRadius: 22, padding: 18 }}>
+          <div style={{ fontSize: 13.5, lineHeight: 1.45, color: "#ffbfd8" }}>
+            S&apos;esborraran <b>tots</b> els resultats, les estadístiques i el repàs de fallades. No es pot desfer. La cara i el cotxe es mantenen.
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <div
+              onClick={() => !busy && setConfirming(false)}
+              style={{ flex: 1, padding: 15, minHeight: 48, borderRadius: 16, textAlign: "center", background: SURFACE, border: "1px solid rgba(255,255,255,0.1)", color: TEXT_SOFT, fontFamily: "Anton, sans-serif", fontSize: 15, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}
+            >
+              Cancel·lar
+            </div>
+            <div
+              onClick={() => !busy && onReset()}
+              style={{ flex: 1, padding: 15, minHeight: 48, borderRadius: 16, textAlign: "center", background: "linear-gradient(95deg,#ff2d87,#ff7b3d)", color: "#0b0212", fontFamily: "Anton, sans-serif", fontSize: 15, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer", opacity: busy ? 0.6 : 1 }}
+            >
+              {busy ? "Esborrant…" : "Esborra-ho tot"}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {msg && (
+        <div style={{ marginTop: 14, padding: "13px 15px", borderRadius: 15, fontSize: 13, background: msg.ok ? "rgba(198,255,61,0.1)" : "rgba(255,45,135,0.12)", border: `1px solid ${msg.ok ? "rgba(198,255,61,0.3)" : "rgba(255,45,135,0.3)"}`, color: msg.ok ? "#ddf7a5" : "#ffbfd8" }}>
+          {msg.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingRow({ label, value, last }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderBottom: last ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ fontSize: 14, color: "#c9c2e8" }}>{label}</div>
+      <div style={{ fontFamily: "Anton, sans-serif", fontSize: 18, color: "#fff" }}>{value}</div>
+    </div>
+  );
+}
+
+/* =========================================================
+   5 · EXAMEN
    ========================================================= */
 function ExamScreen({ screen, setScreen, state, persist }) {
   const [, forceTick] = useState(0);
@@ -553,9 +837,7 @@ function ExamScreen({ screen, setScreen, state, persist }) {
   const flagCount = Object.values(screen.flags).filter(Boolean).length;
   const isFlagged = !!screen.flags[screen.qIndex];
 
-  function update(patch) {
-    setScreen({ ...screen, ...patch });
-  }
+  const update = (patch) => setScreen({ ...screen, ...patch });
 
   async function onQuit() {
     const next = { ...state, inProgress: { ...state.inProgress } };
@@ -582,72 +864,69 @@ function ExamScreen({ screen, setScreen, state, persist }) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", paddingBottom: 190 }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "rgba(246,247,251,0.94)", backdropFilter: "blur(10px)", padding: "14px 18px 12px", borderBottom: "1px solid #e8ebf2" }}>
+    <div style={{ minHeight: "100vh", paddingBottom: 200, background: "#05040a" }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "rgba(5,4,10,0.9)", backdropFilter: "blur(14px)", padding: "16px 18px 13px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div onClick={onQuit} title="Sortir i continuar més tard" style={{ width: 34, height: 34, borderRadius: 12, background: "#ffffff", border: "1px solid #e3e7ef", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <IconArrowLeft />
+          <div onClick={onQuit} title="Sortir i continuar més tard" style={{ width: 36, height: 36, borderRadius: 13, background: SURFACE, border: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: TEXT_SOFT, fontSize: 17 }}>
+            ‹
           </div>
           <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: "-0.01em" }}>{screen.title}</div>
-            <div style={{ fontSize: 11.5, color: "#98a2b3", fontWeight: 600 }}>Pregunta {screen.qIndex + 1} de {total}</div>
+            <div style={{ fontFamily: "Anton, sans-serif", fontSize: 17, letterSpacing: "0.05em", textTransform: "uppercase", color: "#fff" }}>{screen.title}</div>
+            <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600 }}>Pregunta {screen.qIndex + 1} de {total}</div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 11px", borderRadius: 99, fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 13.5, fontVariantNumeric: "tabular-nums", background: low ? "#fdeceb" : "#ffffff", border: `1px solid ${low ? "#f7c7c3" : "#e3e7ef"}`, color: low ? "#c4271b" : "#344054" }}>
-            <IconClock /> {fmtTime(secondsLeft)}
+          <div style={{ padding: "9px 13px", borderRadius: 99, fontFamily: "Anton, sans-serif", fontSize: 16, letterSpacing: "0.04em", fontVariantNumeric: "tabular-nums", background: low ? "rgba(255,45,135,0.16)" : SURFACE, border: `1px solid ${low ? "rgba(255,45,135,0.5)" : "rgba(255,255,255,0.1)"}`, color: low ? "#ff6aa8" : "#e9e5ff", animation: low ? "glowPulse 1.4s ease-in-out infinite" : "none" }}>
+            {fmtTime(secondsLeft)}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 3, marginTop: 13 }}>
+        <div style={{ display: "flex", gap: 3, marginTop: 14 }}>
           {screen.exam.map((_, i) => {
             const cur = i === screen.qIndex;
             const ans = screen.answers[i] !== undefined;
             const fl = screen.flags[i];
+            const color = cur ? PINK : fl ? GOLD : ans ? "#7b2dff" : "rgba(255,255,255,0.12)";
             return (
               <div
                 key={i}
                 onClick={() => update({ qIndex: i })}
-                style={{ flex: 1, height: cur ? 7 : 5, alignSelf: "center", borderRadius: 99, cursor: "pointer", transition: "all .18s ease", background: cur ? BLUE : fl ? AMBER : ans ? "#a9c3fb" : "#dfe4ee" }}
+                style={{ flex: 1, height: cur ? 8 : 5, alignSelf: "center", borderRadius: 99, cursor: "pointer", transition: "all .18s ease", background: color, boxShadow: cur ? `0 0 12px ${PINK}` : "none" }}
               />
             );
           })}
         </div>
       </div>
 
-      <div style={{ padding: "20px 18px 0" }} key={"q" + screen.qIndex}>
+      <div style={{ padding: "20px 18px 0", animation: "popIn .24s ease both" }} key={"q" + screen.qIndex}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ display: "inline-block", background: "#e8f0ff", color: "#0b3fb8", borderRadius: 99, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.02em" }}>
+          <div style={{ display: "inline-block", background: "rgba(41,231,255,0.12)", border: "1px solid rgba(41,231,255,0.3)", color: CYAN, borderRadius: 99, padding: "6px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
             {CATS[item.cat] || ""}
           </div>
           <div
             onClick={() => update({ flags: { ...screen.flags, [screen.qIndex]: !isFlagged } })}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 99, fontSize: 11.5, fontWeight: 700, cursor: "pointer", background: isFlagged ? "#fff8ef" : "#ffffff", border: `1px solid ${isFlagged ? "#f7dfba" : "#e3e7ef"}`, color: isFlagged ? "#b07b2a" : "#98a2b3" }}
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 99, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", background: isFlagged ? "rgba(255,209,102,0.14)" : SURFACE, border: `1px solid ${isFlagged ? "rgba(255,209,102,0.45)" : "rgba(255,255,255,0.1)"}`, color: isFlagged ? GOLD : MUTED }}
           >
-            <IconFlag /> Dubtosa
+            ⚑ Dubtosa
           </div>
         </div>
 
         {item.img && <SignalImage src={item.img} alt={item.imgAlt} />}
 
-        <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 700, fontSize: 22, lineHeight: 1.28, letterSpacing: "-0.015em", marginTop: 18 }}>
+        <div style={{ fontFamily: "Anton, sans-serif", fontSize: 27, lineHeight: 1.12, letterSpacing: "-0.005em", marginTop: 20, color: "#fff" }}>
           {item.text}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 11, marginTop: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 11, marginTop: 22 }}>
           {item.options.map((opt, i) => {
-            const selected = screen.answers[screen.qIndex] === i;
+            const on = screen.answers[screen.qIndex] === i;
             return (
               <div
                 key={i}
                 onClick={() => update({ answers: { ...screen.answers, [screen.qIndex]: i } })}
-                style={{ position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "16px 15px", minHeight: 66, background: "#ffffff", border: "1.5px solid #e3e7ef", borderRadius: 18, cursor: "pointer", boxShadow: "0 1px 2px rgba(16,24,40,0.04)" }}
+                style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 15px", minHeight: 70, borderRadius: 20, cursor: "pointer", transition: "all .16s ease", background: on ? "rgba(255,45,135,0.1)" : CARD, border: `1.5px solid ${on ? PINK : "rgba(255,255,255,0.09)"}`, boxShadow: on ? "0 0 0 3px rgba(255,45,135,0.14), 0 12px 30px rgba(255,45,135,0.18)" : "none", WebkitTapHighlightColor: "transparent" }}
               >
-                <div style={{ position: "absolute", inset: "-1.5px", borderRadius: 18, border: `2px solid ${BLUE}`, background: "rgba(21,93,252,0.045)", opacity: selected ? 1 : 0, transition: "opacity .16s ease", pointerEvents: "none" }} />
-                <div style={{ position: "relative", flex: "0 0 34px", height: 34, borderRadius: 12, background: "#f2f4f9", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 14.5, color: "#667085" }}>
+                <div style={{ flex: "0 0 38px", height: 38, borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Anton, sans-serif", fontSize: 17, transition: "all .16s ease", background: on ? "linear-gradient(140deg,#ff2d87,#ff7b3d)" : "rgba(255,255,255,0.06)", color: on ? "#0b0212" : "#8d85ad" }}>
                   {"ABCD"[i]}
-                  <div style={{ position: "absolute", inset: 0, borderRadius: 12, background: BLUE, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", opacity: selected ? 1 : 0, transition: "opacity .16s ease" }}>
-                    {"ABCD"[i]}
-                  </div>
                 </div>
-                <div style={{ position: "relative", fontSize: 15.5, lineHeight: 1.34, fontWeight: 500, color: "#101828" }}>{opt}</div>
+                <div style={{ fontSize: 15.5, lineHeight: 1.34, fontWeight: 500, color: on ? "#fff" : "#d9d4f0" }}>{opt}</div>
               </div>
             );
           })}
@@ -655,14 +934,14 @@ function ExamScreen({ screen, setScreen, state, persist }) {
       </div>
 
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
-        <div style={{ width: "100%", maxWidth: 430, padding: "14px 18px 20px", background: "linear-gradient(180deg, rgba(246,247,251,0) 0%, #f6f7fb 42%)", pointerEvents: "auto" }}>
+        <div style={{ width: "100%", maxWidth: 430, padding: "14px 18px 22px", background: "linear-gradient(180deg,rgba(5,4,10,0) 0%,#05040a 40%)", pointerEvents: "auto" }}>
           {flagCount > 0 && (
             <div
               onClick={() => {
                 const flagged = Object.keys(screen.flags).filter((k) => screen.flags[k]).map(Number).sort((a, b) => a - b);
                 if (flagged.length) update({ qIndex: flagged[0] });
               }}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: "#b07b2a", background: "#fff8ef", border: "1px solid #f7dfba", borderRadius: 99, padding: 8, cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: GOLD, background: "rgba(255,209,102,0.1)", border: "1px solid rgba(255,209,102,0.3)", borderRadius: 99, padding: 9, cursor: "pointer" }}
             >
               Anar a les dubtoses ({flagCount})
             </div>
@@ -671,16 +950,16 @@ function ExamScreen({ screen, setScreen, state, persist }) {
             {screen.qIndex > 0 && (
               <div
                 onClick={() => update({ qIndex: screen.qIndex - 1 })}
-                style={{ flex: "0 0 auto", padding: "17px 20px", background: "#ffffff", border: "1px solid #e3e7ef", borderRadius: 17, fontFamily: "Manrope, sans-serif", fontWeight: 700, fontSize: 15, color: "#475467", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                style={{ flex: "0 0 auto", padding: "18px 22px", background: SURFACE, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, fontFamily: "Anton, sans-serif", fontSize: 16, letterSpacing: "0.05em", textTransform: "uppercase", color: TEXT_SOFT, cursor: "pointer" }}
               >
-                <IconArrowLeft size={15} strokeWidth={2.3} /> Enrere
+                Enrere
               </div>
             )}
             <div
               onClick={onNext}
-              style={{ flex: 1, padding: 17, borderRadius: 17, textAlign: "center", fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 16, cursor: "pointer", transition: "all .18s ease", background: answered ? BLUE : "#ffffff", color: answered ? "#ffffff" : "#98a2b3", border: `1px solid ${answered ? BLUE : "#e3e7ef"}`, boxShadow: answered ? "0 8px 22px rgba(21,93,252,0.24)" : "none" }}
+              style={{ flex: 1, padding: 18, borderRadius: 18, textAlign: "center", fontFamily: "Anton, sans-serif", fontSize: 18, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer", transition: "all .18s ease", background: answered ? "linear-gradient(95deg,#ff2d87,#ff7b3d)" : SURFACE, color: answered ? "#0b0212" : MUTED, border: `1px solid ${answered ? "transparent" : "rgba(255,255,255,0.1)"}`, boxShadow: answered ? "0 12px 32px rgba(255,45,135,0.3)" : "none" }}
             >
-              {isLast ? "Finalitzar examen" : answered ? "Següent" : "Ometre per ara"}
+              {isLast ? "Finalitzar" : answered ? "Següent" : "Ometre per ara"}
             </div>
           </div>
         </div>
@@ -693,11 +972,11 @@ function SignalImage({ src, alt }) {
   const [errored, setErrored] = useState(false);
   if (errored) {
     return (
-      <div style={{ marginTop: 16, borderRadius: 20, border: "1px solid #e3e7ef", background: "repeating-linear-gradient(135deg, #f2f4f9 0 9px, #e9edf5 9px 18px)", height: 168, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: "#8d97a8", letterSpacing: "0.04em", textAlign: "center", padding: "0 20px" }}>
+      <div style={{ marginTop: 16, borderRadius: 22, border: "1px solid rgba(255,255,255,0.1)", background: "repeating-linear-gradient(135deg,#120f1e 0 9px,#171327 9px 18px)", height: 172, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 9 }}>
+        <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: "#7d75a0", letterSpacing: "0.04em", textAlign: "center", padding: "0 22px" }}>
           {alt}
         </div>
-        <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 9.5, color: "#aeb6c4" }}>imagen pendiente de añadir</div>
+        <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 9.5, color: "#544d75" }}>imatge pendent</div>
       </div>
     );
   }
@@ -707,13 +986,13 @@ function SignalImage({ src, alt }) {
       src={src}
       alt={alt || ""}
       onError={() => setErrored(true)}
-      style={{ marginTop: 16, borderRadius: 20, border: "1px solid #e3e7ef", height: 168, width: "100%", objectFit: "contain", background: "#fff" }}
+      style={{ marginTop: 16, borderRadius: 22, border: "1px solid rgba(255,255,255,0.1)", background: "#fff", height: 172, width: "100%", objectFit: "contain", padding: 14, display: "block" }}
     />
   );
 }
 
 /* =========================================================
-   Finalizar examen
+   Finalitzar examen
    ========================================================= */
 async function finishExam(screen, state, persist, setScreen, elapsedSeconds) {
   const ex = screen.exam;
@@ -752,20 +1031,37 @@ async function finishExam(screen, state, persist, setScreen, elapsedSeconds) {
   }
   delete next.inProgress[screen.key];
   await persist(next);
+
+  // Si ha aprovat, el botó principal proposa el següent examen pendent
+  let nextExamNum = screen.examNum;
+  if (pass && screen.examNum) {
+    for (let n = 1; n <= 10; n++) {
+      if (!next.examResults[n] && !next.inProgress[String(n)]) {
+        nextExamNum = n;
+        break;
+      }
+    }
+  }
+
   setScreen({
     name: "result",
     exam: ex,
     answers: screen.answers,
     examNum: screen.examNum,
+    nextExamNum,
     elapsedSeconds,
     perQuestion,
+    stateAfter: next,
   });
 }
 
 /* =========================================================
-   PANTALLA 4 · INFORME
+   6 · INFORME
    ========================================================= */
 function ResultScreen({ screen, state, onHome, onRepeat }) {
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+
   const ex = screen.exam;
   const total = ex.length;
   let correct = 0,
@@ -788,66 +1084,140 @@ function ResultScreen({ screen, state, onHome, onRepeat }) {
   const errors = total - correct;
   const allowed = passThreshold(total);
   const pass = errors <= allowed;
+
   const ringR = 52;
   const circumference = 2 * Math.PI * ringR;
   const ringOffset = Math.round(circumference - (correct / total) * circumference);
 
+  const resultState = screen.stateAfter || state;
   const resultTopics = singleExamTopicStats(screen.perQuestion);
+  const doneList = doneExamsSorted(resultState.examResults);
+  const passedCount = countPassed(resultState.examResults);
+  const note = evolutionNote(resultState.examResults, { pass, total });
+  const reward = pass && passedCount > 0 ? REWARDS[(passedCount - 1) % REWARDS.length] : null;
 
-  const doneList = doneExamsSorted(state.examResults);
-  const historyWithNow = doneList.map((r) => ({
-    num: r.num,
-    value: r.score,
-    isNow: screen.examNum && r.num === screen.examNum,
-    pass: r.pass,
-  }));
+  /* Confeti només si ha aprovat */
+  useEffect(() => {
+    if (!pass) return;
+    const c = canvasRef.current;
+    if (!c || !c.clientWidth) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = c.clientWidth,
+      h = c.clientHeight;
+    c.width = w * dpr;
+    c.height = h * dpr;
+    const ctx = c.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const colors = [PINK, CYAN, LIME, GOLD, "#ffffff"];
+    let parts = [],
+      last = performance.now(),
+      t = 0,
+      nextBurst = 120;
+
+    const burst = (x, y) => {
+      const col = colors[Math.floor(Math.random() * colors.length)];
+      const n = 42;
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n + Math.random() * 0.25;
+        const sp = 55 + Math.random() * 130;
+        parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, col, r: 1.4 + Math.random() * 1.8 });
+      }
+    };
+
+    const frame = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      t += dt * 1000;
+      if (t > nextBurst && t < 4200) {
+        burst(w * (0.18 + Math.random() * 0.64), h * (0.14 + Math.random() * 0.42));
+        nextBurst = t + 320 + Math.random() * 260;
+      }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(0,0,0,0.16)";
+      ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = "lighter";
+      parts.forEach((p) => {
+        p.life -= dt * 0.62;
+        p.vy += 95 * dt;
+        p.vx *= 0.985;
+        p.vy *= 0.985;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        if (p.life <= 0) return;
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.col;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * (0.4 + p.life * 0.9), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      parts = parts.filter((p) => p.life > 0 && p.y < h + 40);
+      if (t < 6200) rafRef.current = requestAnimationFrame(frame);
+      else {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.clearRect(0, 0, w, h);
+      }
+    };
+    rafRef.current = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [pass]);
 
   const subtitle = pass
-    ? "Com a l'examen real: 3 errors permesos."
+    ? "3 errors permesos i els has esquivat. Segueix així i el teòric és teu."
     : errors <= 5
-    ? "Només es permeten 3 errors. T'has quedat a les portes."
+    ? "Només es permeten 3 errors. T'has quedat a les portes, va de debò."
     : errors <= 10
     ? "Només es permeten 3 errors. Repassa els temes de sota i torna."
     : "Només es permeten 3 errors. Toca tornar a la teoria abans de repetir.";
 
   return (
-    <div style={{ minHeight: "100vh" }}>
-      <div style={{ padding: "34px 18px 26px", background: pass ? "linear-gradient(170deg,#087443 0%,#12b76a 100%)" : "linear-gradient(170deg,#a62119 0%,#f04438 100%)" }}>
-        <div style={{ position: "relative", width: 132, height: 132, margin: "0 auto" }}>
-          <svg width="132" height="132" viewBox="0 0 132 132" style={{ transform: "rotate(-90deg)" }}>
-            <circle cx="66" cy="66" r={ringR} fill="none" stroke="rgba(255,255,255,0.24)" strokeWidth="11" />
-            <circle cx="66" cy="66" r={ringR} fill="none" stroke="#ffffff" strokeWidth="11" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={ringOffset} />
+    <div style={{ minHeight: "100vh", background: "#05040a", animation: "popIn .3s ease both" }}>
+      <div style={{ position: "relative", overflow: "hidden", padding: "32px 18px 26px", background: pass ? "radial-gradient(110% 80% at 50% 0%,#1f7a3a 0%,#0d2a1c 55%,#05040a 100%)" : "radial-gradient(110% 80% at 50% 0%,#7a1140 0%,#2a0d1c 55%,#05040a 100%)" }}>
+        <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
+        {pass && (
+          <div style={{ position: "relative", textAlign: "center", fontFamily: "Anton, sans-serif", fontSize: 15, letterSpacing: "0.28em", textTransform: "uppercase", color: LIME, marginBottom: 12 }}>
+            La reina del volant
+          </div>
+        )}
+        <div style={{ position: "relative", width: 150, height: 150, margin: "0 auto" }}>
+          <svg width="150" height="150" viewBox="0 0 150 150" style={{ transform: "rotate(-90deg)" }}>
+            <circle cx="75" cy="75" r={ringR} fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="13" />
+            <circle cx="75" cy="75" r={ringR} fill="none" stroke={pass ? LIME : "#ffffff"} strokeWidth="13" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={ringOffset} style={{ animation: "ringDraw 1.1s cubic-bezier(.2,.8,.2,1) both" }} />
           </svg>
-          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#ffffff" }}>
-            <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 40, lineHeight: 1, letterSpacing: "-0.03em" }}>{correct}</div>
-            <div style={{ fontSize: 12.5, opacity: 0.82, fontWeight: 600 }}>de {total}</div>
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontFamily: "Anton, sans-serif", fontSize: 52, lineHeight: 0.82, letterSpacing: "-0.02em", color: "#fff" }}>{correct}</div>
+            <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.72)", fontWeight: 600 }}>de {total}</div>
           </div>
         </div>
-        <div style={{ textAlign: "center", color: "#ffffff", marginTop: 18 }}>
-          <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 30, letterSpacing: "-0.025em" }}>{pass ? "Aprovat!" : "Suspès"}</div>
-          <div style={{ fontSize: 14, opacity: 0.85, marginTop: 5 }}>{subtitle}</div>
+        <div style={{ position: "relative", textAlign: "center", marginTop: 16 }}>
+          <div style={{ fontFamily: "Anton, sans-serif", fontSize: pass ? 50 : 44, lineHeight: 0.9, letterSpacing: "-0.01em", textTransform: "uppercase", color: "#fff", textShadow: pass ? "0 0 30px rgba(198,255,61,0.5)" : "none", animation: pass ? "slamIn .5s cubic-bezier(.2,.9,.2,1) both" : "none", display: "inline-block" }}>
+            {pass ? "Aprovat!" : "Suspès"}
+          </div>
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.78)", marginTop: 8, padding: "0 12px" }}>{subtitle}</div>
         </div>
-        <div style={{ display: "flex", gap: 9, marginTop: 22 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.16)", borderRadius: 16, padding: 12, textAlign: "center", color: "#fff" }}>
-            <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 19 }}>{errors}</div>
-            <div style={{ fontSize: 11, opacity: 0.82, fontWeight: 600 }}>Fallades (màx. {allowed})</div>
+
+        {reward && (
+          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 12, marginTop: 20, background: "rgba(0,0,0,0.35)", border: "1px solid rgba(198,255,61,0.35)", borderRadius: 20, padding: 15 }}>
+            <div style={{ fontSize: 26 }}>{reward.emoji}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "Anton, sans-serif", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", color: LIME }}>Desbloquejat</div>
+              <div style={{ fontSize: 14.5, fontWeight: 600, color: "#fff", marginTop: 3 }}>{reward.label}</div>
+            </div>
           </div>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.16)", borderRadius: 16, padding: 12, textAlign: "center", color: "#fff" }}>
-            <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 19 }}>{fmtTime(screen.elapsedSeconds)}</div>
-            <div style={{ fontSize: 11, opacity: 0.82, fontWeight: 600 }}>Temps utilitzat</div>
-          </div>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.16)", borderRadius: 16, padding: 12, textAlign: "center", color: "#fff" }}>
-            <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 19 }}>{blank}</div>
-            <div style={{ fontSize: 11, opacity: 0.82, fontWeight: 600 }}>Sense contestar</div>
-          </div>
+        )}
+
+        <div style={{ position: "relative", display: "flex", gap: 9, marginTop: 14 }}>
+          <MetricCell value={String(errors)} label={`Fallades · màx ${allowed}`} />
+          <MetricCell value={fmtTime(screen.elapsedSeconds)} label="Temps" />
+          <MetricCell value={String(blank)} label="En blanc" />
         </div>
       </div>
 
-      <div style={{ padding: "22px 18px 40px" }}>
+      <div style={{ padding: "24px 18px 44px" }}>
         {resultTopics.length > 0 && (
           <>
-            <SectionTitle>Per temes</SectionTitle>
-            <div style={{ ...cardStyle, padding: "6px 18px 14px" }}>
+            <Kicker style={{ margin: "0 0 12px" }}>Per temes</Kicker>
+            <div style={{ ...panelStyle, padding: "6px 18px 14px" }}>
               {resultTopics.map((t) => (
                 <TopicRow key={t.name} t={t} />
               ))}
@@ -855,61 +1225,78 @@ function ResultScreen({ screen, state, onHome, onRepeat }) {
           </>
         )}
 
-        {historyWithNow.length > 0 && (
+        {doneList.length > 0 && (
           <>
-            <SectionTitle>La teva evolució</SectionTitle>
-            <div style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 7, height: 92 }}>
-                {historyWithNow.map((h) => (
-                  <div key={h.num} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, justifyContent: "flex-end", height: "100%" }}>
-                    <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 11, color: h.isNow ? (pass ? "#087443" : "#c4271b") : "#c3cad6" }}>{h.value}</div>
-                    <div style={{ width: "100%", height: barHeight(h.value, total, 52), borderRadius: 6, background: h.isNow ? (pass ? GREEN : RED) : "#dfe4ee", transition: "height .4s ease" }} />
-                    <div style={{ fontSize: 10, color: "#b3bac8", fontWeight: 600 }}>{String(h.num).padStart(2, "0")}</div>
-                  </div>
-                ))}
+            <Kicker>La teva evolució</Kicker>
+            <div style={{ ...panelStyle, padding: 20 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 96 }}>
+                {doneList.map((h) => {
+                  const isNow = screen.examNum && h.num === screen.examNum;
+                  return (
+                    <div key={h.num} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, justifyContent: "flex-end", height: "100%" }}>
+                      <div style={{ fontFamily: "Anton, sans-serif", fontSize: 12, color: isNow ? (pass ? LIME : PINK) : "#544d75" }}>{h.score}</div>
+                      <div style={{ width: "100%", height: barHeight(h.score, total, 56), borderRadius: 6, background: isNow ? (pass ? "linear-gradient(180deg,#c6ff3d,#12b76a)" : "linear-gradient(180deg,#ff2d87,#7b2dff)") : "rgba(255,255,255,0.12)", transition: "height .45s ease" }} />
+                      <div style={{ fontSize: 10, color: MUTED, fontWeight: 600 }}>{String(h.num).padStart(2, "0")}</div>
+                    </div>
+                  );
+                })}
               </div>
+              {note && (
+                <div style={{ fontSize: 12.5, color: TEXT_SOFT, marginTop: 15, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                  {note}
+                </div>
+              )}
             </div>
           </>
         )}
 
         {wrong.length > 0 && (
           <>
-            <SectionTitle>Repàs de les fallades</SectionTitle>
+            <Kicker>Repàs de les fallades</Kicker>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {wrong.map((w, i) => (
-                <div key={i} style={{ background: "#ffffff", border: "1px solid #e8ebf2", borderRadius: 20, padding: 17, boxShadow: "0 1px 2px rgba(16,24,40,0.04)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#98a2b3" }}>{w.cat}</div>
-                  <div style={{ fontFamily: "Manrope, sans-serif", fontWeight: 700, fontSize: 16, lineHeight: 1.35, marginTop: 8 }}>{w.text}</div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 13, background: "#fdeceb", borderRadius: 13, padding: "11px 12px" }}>
-                    <IconX color="#c4271b" size={14} strokeWidth={3} />
-                    <div style={{ fontSize: 13.5, lineHeight: 1.35, color: "#a62119" }}>
+                <div key={i} style={{ ...panelStyle, borderRadius: 22, padding: 18 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED }}>{w.cat}</div>
+                  <div style={{ fontFamily: "Anton, sans-serif", fontSize: 19, lineHeight: 1.2, marginTop: 9, color: "#fff" }}>{w.text}</div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginTop: 14, background: "rgba(255,45,135,0.12)", border: "1px solid rgba(255,45,135,0.25)", borderRadius: 14, padding: 12 }}>
+                    <div style={{ color: "#ff5c9e", fontWeight: 700, fontSize: 13 }}>✕</div>
+                    <div style={{ fontSize: 13.5, lineHeight: 1.35, color: "#ffbfd8" }}>
                       <b>La teva:</b> {w.given}
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8, background: "#e7f9f1", borderRadius: 13, padding: "11px 12px" }}>
-                    <IconCheck color="#087443" size={14} strokeWidth={3} />
-                    <div style={{ fontSize: 13.5, lineHeight: 1.35, color: "#06623a" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginTop: 8, background: "rgba(198,255,61,0.1)", border: "1px solid rgba(198,255,61,0.28)", borderRadius: 14, padding: 12 }}>
+                    <div style={{ color: LIME, fontWeight: 700, fontSize: 13 }}>✓</div>
+                    <div style={{ fontSize: 13.5, lineHeight: 1.35, color: "#ddf7a5" }}>
                       <b>Correcta:</b> {w.right}
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, lineHeight: 1.5, color: "#475467", marginTop: 12, paddingLeft: 11, borderLeft: "2px solid #e3e7ef" }}>{w.exp}</div>
+                  <div style={{ fontSize: 13, lineHeight: 1.5, color: TEXT_SOFT, marginTop: 13, paddingLeft: 12, borderLeft: "2px solid rgba(255,255,255,0.12)" }}>{w.exp}</div>
                 </div>
               ))}
             </div>
           </>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 26 }}>
           {screen.examNum && (
-            <div onClick={onRepeat} style={{ background: BLUE, color: "#ffffff", borderRadius: 17, padding: 18, textAlign: "center", fontFamily: "Manrope, sans-serif", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: "0 8px 22px rgba(21,93,252,0.24)" }}>
-              Repetir aquest examen
+            <div onClick={onRepeat} style={{ background: "linear-gradient(95deg,#ff2d87,#ff7b3d)", color: "#0b0212", borderRadius: 19, padding: 19, textAlign: "center", fontFamily: "Anton, sans-serif", fontSize: 19, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 12px 34px rgba(255,45,135,0.32)" }}>
+              {pass && screen.nextExamNum !== screen.examNum ? "Següent examen" : "Repetir examen"}
             </div>
           )}
-          <div onClick={onHome} style={{ background: "#ffffff", border: "1px solid #e3e7ef", color: "#475467", borderRadius: 17, padding: 18, textAlign: "center", fontFamily: "Manrope, sans-serif", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>
+          <div onClick={onHome} style={{ background: SURFACE, border: "1px solid rgba(255,255,255,0.1)", color: TEXT_SOFT, borderRadius: 19, padding: 19, textAlign: "center", fontFamily: "Anton, sans-serif", fontSize: 18, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
             Tornar al menú
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MetricCell({ value, label }) {
+  return (
+    <div style={{ flex: 1, background: "rgba(0,0,0,0.32)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 17, padding: 13, textAlign: "center" }}>
+      <div style={{ fontFamily: "Anton, sans-serif", fontSize: 22, color: "#fff" }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.7)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</div>
     </div>
   );
 }

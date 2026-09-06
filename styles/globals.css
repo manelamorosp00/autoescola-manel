@@ -1,45 +1,44 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  background: #eceef4;
-  font-family: Inter, system-ui, sans-serif;
-  color: #101828;
+  background: #05040a;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  color: #f4f2ff;
   -webkit-font-smoothing: antialiased;
 }
 a {
-  color: #155dfc;
+  color: #29e7ff;
   text-decoration: none;
 }
 a:hover {
-  color: #0b3fb8;
+  color: #ff2d87;
 }
 
 @keyframes popIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes floatUp {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes ringDraw {
-  from {
-    stroke-dashoffset: 326;
-  }
+  from { stroke-dashoffset: 326; }
+}
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes shine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes slamIn {
+  0% { opacity: 0; transform: scale(1.5) rotate(-6deg); }
+  60% { opacity: 1; transform: scale(0.94) rotate(-2deg); }
+  100% { transform: scale(1) rotate(-2deg); }
 }
